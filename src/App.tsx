@@ -21,13 +21,11 @@ import {
   FileText,
   Share2,
   Copy,
-  HelpCircle,
-  Download
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import InstallGuide from './components/InstallGuide';
 
 type Day = 'Sexta-feira' | 'Sábado' | 'Domingo';
 type PaymentStatus = 'Pago' | 'Parcialmente Pago' | 'Não Pago';
@@ -76,48 +74,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Day | 'Todos'>('Todos');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsInstallable(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    const checkStandalone = () => {
-      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-      setIsStandalone(!!isStandaloneMode);
-    };
-    
-    checkStandalone();
-    window.addEventListener('resize', checkStandalone);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('resize', checkStandalone);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      setShowInstallGuide(true);
-      return;
-    }
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
-    }
-    setDeferredPrompt(null);
-  };
 
   const calculateStatus = (paid: number, total: number): PaymentStatus => {
     if (total <= 0) return 'Não Pago';
@@ -429,27 +387,8 @@ export default function App() {
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
                 Lista de <span className="text-emerald-600">Passageiros</span>
               </h1>
-              {!isStandalone && (
-                <button
-                  onClick={handleInstallClick}
-                  className="sm:hidden ml-2 px-3 py-2 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors animate-pulse flex items-center gap-2"
-                  title="Instalar App"
-                >
-                  <Download size={18} />
-                  <span className="text-xs font-bold">Instalar</span>
-                </button>
-              )}
             </div>
             <div className="hidden sm:flex items-center gap-6 text-sm font-medium text-slate-500">
-              {!isStandalone && (
-                <button
-                  onClick={handleInstallClick}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 font-bold"
-                >
-                  <Download size={16} />
-                  Instalar App
-                </button>
-              )}
               <div className="flex flex-col items-end">
                 <div className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -1008,15 +947,6 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isInstallable && (
-              <button 
-                onClick={handleInstallClick}
-                className="bg-emerald-600 p-2 rounded-xl flex-shrink-0 animate-pulse"
-                title="Instalar App"
-              >
-                <Share2 size={18} />
-              </button>
-            )}
             <button 
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
               className="bg-slate-800 p-2 rounded-xl flex-shrink-0"
@@ -1026,7 +956,6 @@ export default function App() {
           </div>
         </div>
       </div>
-      <InstallGuide isOpen={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
     </div>
   );
 }

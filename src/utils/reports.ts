@@ -72,11 +72,19 @@ export const generatePDF = async (filteredPassengers: Passenger[], stats: any) =
   } else {
     // Fallback to download
     try {
-      doc.save(fileName);
-      alert('Seu navegador não suporta compartilhamento direto de arquivos. O PDF foi baixado. Você pode anexá-lo manualmente no WhatsApp.');
+      const pdfDataUri = doc.output('datauristring');
+      const link = document.createElement('a');
+      link.href = pdfDataUri;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      alert('PDF gerado com sucesso! Se o download não iniciou automaticamente, verifique seus downloads ou tente novamente.');
     } catch (error) {
       console.error('Erro ao baixar PDF:', error);
-      alert('Erro ao gerar o PDF. Tente novamente.');
+      // Last resort fallback
+      doc.save(fileName);
     }
   }
 } catch (error) {

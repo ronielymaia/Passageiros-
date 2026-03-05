@@ -509,6 +509,9 @@ export default function App() {
                 </button>
                 <button onClick={() => copyTextReport(filteredPassengers, stats)} className="px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-emerald-100"><Share2 size={18} /><span className="hidden sm:inline">Copiar Texto</span></button>
               </div>
+              <p className="text-[10px] text-slate-400 mt-2 italic">
+                Dica: Se o compartilhamento direto falhar, use "Copiar Texto" e cole no WhatsApp.
+              </p>
               {passengers.length > 0 && (
                 <button onClick={clearAll} className="px-4 py-3 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm"><Trash2 size={18} /><span className="hidden sm:inline">Limpar Tudo</span></button>
               )}

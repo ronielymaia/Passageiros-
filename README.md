@@ -1,11 +1,35 @@
-<div align="center">
+# Lista de Passageiros
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Aplicativo de gerenciamento de passageiros com controle financeiro e suporte offline (PWA).
 
-  <h1>Built with AI Studio</h2>
+## Funcionalidades
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+*   Cadastro e edição de passageiros.
+*   Controle de pagamentos (Pix, Dinheiro, Cartão).
+*   Geração de relatórios em PDF.
+*   Funciona offline (PWA).
+*   Instalável em Android/iOS.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Como Rodar Localmente
 
-</div>
+1.  Clone este repositório.
+2.  Instale as dependências:
+    ```bash
+    npm install
+    ```
+3.  Inicie o servidor de desenvolvimento:
+    ```bash
+    npm run dev
+    ```
+
+## Gerar APK (Android)
+
+Este projeto está configurado com **Capacitor** para gerar aplicativos Android nativos.
+
+Consulte o arquivo [ANDROID_BUILD_INSTRUCTIONS.md](./ANDROID_BUILD_INSTRUCTIONS.md) para o passo a passo completo.
+
+## PWA (Progressive Web App)
+
+O aplicativo já é um PWA completo. Para instalar no celular sem gerar APK:
+1.  Abra o site no Chrome (Android) ou Safari (iOS).
+2.  Toque em "Adicionar à Tela Inicial".

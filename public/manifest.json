@@ -1,0 +1,21 @@
+{
+  "short_name": "Passageiros",
+  "name": "Lista de Passageiros",
+  "description": "Gerenciamento de passageiros e controle de pagamentos.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "id": "passageiros-app-v1",
+  "categories": ["productivity", "finance"],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f172a",
+  "background_color": "#f8fafc",
+  "scope": "/"
+}

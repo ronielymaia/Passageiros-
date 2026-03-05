@@ -4,6 +4,14 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+@layer base {
+  body {
+    @apply antialiased selection:bg-emerald-100 selection:text-emerald-900;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 body {
   @apply bg-slate-50;
   background-image: radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0, transparent 50%), 

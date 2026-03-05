@@ -22,20 +22,27 @@ import { generatePDF, copyTextReport } from './utils/reports';
 import { Header } from './components/Header';
 import { StatsSummary } from './components/StatsSummary';
 import { HelpModal } from './components/HelpModal';
+import { ConfirmModal } from './components/ConfirmModal';
+import { Toast, ToastType } from './components/Toast';
 
 export default function App() {
   const [passengers, setPassengers] = useState<Passenger[]>(() => {
-    const saved = localStorage.getItem('passengers');
-    if (!saved) return [];
-    const parsed = JSON.parse(saved);
-    return parsed.map((p: any) => ({
-      ...p,
-      days: p.days || (p.day ? [p.day] : []),
-      status: p.status || (p.isPaid ? 'Pago' : 'Não Pago'),
-      congregation: p.congregation || '',
-      cpf: p.cpf || '',
-      documentType: p.documentType || 'CPF'
-    }));
+    try {
+      const saved = localStorage.getItem('passengers');
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return parsed.map((p: any) => ({
+        ...p,
+        days: p.days || (p.day ? [p.day] : []),
+        status: p.status || (p.isPaid ? 'Pago' : 'Não Pago'),
+        congregation: p.congregation || '',
+        cpf: p.cpf || '',
+        documentType: p.documentType || 'CPF'
+      }));
+    } catch (error) {
+      console.error('Erro ao carregar dados do localStorage:', error);
+      return [];
+    }
   });
 
   const [name, setName] = useState('');
@@ -52,13 +59,62 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   
+  // Custom Dialog States
+  const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
+    message: '',
+    type: 'success',
+    isVisible: false
+  });
+  
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false
+  });
+  
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ message, type, isVisible: true });
+  };
+
+  const closeToast = () => {
+    setToast(prev => ({ ...prev, isVisible: false }));
+  };
+
+  const askConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isDanger
+    });
+  };
   
   const formRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('passengers', JSON.stringify(passengers));
+    try {
+      localStorage.setItem('passengers', JSON.stringify(passengers));
+    } catch (error) {
+      console.error('Erro ao salvar no localStorage:', error);
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        showToast('Memória cheia! Não foi possível salvar novos dados.', 'error');
+      }
+    }
   }, [passengers]);
 
   const toggleDaySelection = (day: Day) => {
@@ -92,9 +148,10 @@ export default function App() {
           : p
       ));
       setEditingId(null);
+      showToast('Passageiro atualizado com sucesso!');
     } else {
       const newPassenger: Passenger = {
-        id: crypto.randomUUID(),
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
         name: name.trim(),
         cpf: cpf.trim(),
         documentType,
@@ -106,6 +163,7 @@ export default function App() {
         paidAmount: paid,
       };
       setPassengers([newPassenger, ...passengers]);
+      showToast('Passageiro adicionado à lista!');
     }
 
     resetForm();
@@ -168,15 +226,27 @@ export default function App() {
   };
 
   const deletePassenger = (id: string) => {
-    if (confirm('Tem certeza que deseja remover este passageiro?')) {
-      setPassengers(passengers.filter(p => p.id !== id));
-    }
+    askConfirm(
+      'Remover Passageiro',
+      'Tem certeza que deseja remover este passageiro da lista?',
+      () => {
+        setPassengers(passengers.filter(p => p.id !== id));
+        showToast('Passageiro removido.', 'info');
+      },
+      true
+    );
   };
 
   const clearAll = () => {
-    if (confirm('ATENÇÃO: Isso irá apagar TODOS os passageiros da lista. Deseja continuar?')) {
-      setPassengers([]);
-    }
+    askConfirm(
+      'Limpar Tudo',
+      'ATENÇÃO: Isso irá apagar TODOS os passageiros da lista. Esta ação não pode ser desfeita.',
+      () => {
+        setPassengers([]);
+        showToast('Lista limpa com sucesso.', 'info');
+      },
+      true
+    );
   };
 
   const toggleSelection = (id: string) => {
@@ -194,10 +264,16 @@ export default function App() {
   };
 
   const deleteSelected = () => {
-    if (confirm(`Deseja remover os ${selectedIds.length} passageiros selecionados?`)) {
-      setPassengers(passengers.filter(p => !selectedIds.includes(p.id)));
-      setSelectedIds([]);
-    }
+    askConfirm(
+      'Remover Selecionados',
+      `Deseja remover os ${selectedIds.length} passageiros selecionados?`,
+      () => {
+        setPassengers(passengers.filter(p => !selectedIds.includes(p.id)));
+        setSelectedIds([]);
+        showToast(`${selectedIds.length} passageiros removidos.`, 'info');
+      },
+      true
+    );
   };
 
   const markSelectedStatus = (status: PaymentStatus) => {
@@ -244,14 +320,16 @@ export default function App() {
   const handleGeneratePDF = async () => {
     setIsGeneratingPDF(true);
     try {
-      await generatePDF(filteredPassengers, stats);
+      await generatePDF(filteredPassengers, stats, (msg, type) => showToast(msg, type));
+    } catch (error) {
+      showToast('Erro ao gerar PDF.', 'error');
     } finally {
       setIsGeneratingPDF(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-32 pt-[env(safe-area-inset-top)]">
       <Header 
         totalPaid={stats.totalAmountPaid} 
         totalPending={stats.totalAmountPending} 
@@ -358,6 +436,7 @@ export default function App() {
               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Valor Total (R$)</label>
               <input
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={ticketValue}
                 onChange={(e) => setTicketValue(e.target.value)}
@@ -370,6 +449,7 @@ export default function App() {
               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Valor Pago (R$)</label>
               <input
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={paidValue}
                 onChange={(e) => setPaidValue(e.target.value)}
@@ -507,7 +587,7 @@ export default function App() {
                   <FileText size={18} />
                   <span className="hidden sm:inline">{isGeneratingPDF ? 'Gerando...' : 'PDF'}</span>
                 </button>
-                <button onClick={() => copyTextReport(filteredPassengers, stats)} className="px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-emerald-100"><Share2 size={18} /><span className="hidden sm:inline">Copiar Texto</span></button>
+                <button onClick={() => copyTextReport(filteredPassengers, stats, (msg, type) => showToast(msg, type))} className="px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-emerald-100"><Share2 size={18} /><span className="hidden sm:inline">Copiar Texto</span></button>
               </div>
               <p className="text-[10px] text-slate-400 mt-2 italic">
                 Dica: Se o compartilhamento direto falhar, use "Copiar Texto" e cole no WhatsApp.
@@ -637,6 +717,22 @@ export default function App() {
       </div>
 
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      
+      <ConfirmModal 
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        isDanger={confirmModal.isDanger}
+      />
+
+      <Toast 
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={closeToast}
+      />
     </div>
   );
 }

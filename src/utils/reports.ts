@@ -2,7 +2,11 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Passenger } from '../types';
 
-export const generatePDF = async (filteredPassengers: Passenger[], stats: any) => {
+export const generatePDF = async (
+  filteredPassengers: Passenger[], 
+  stats: any, 
+  notify?: (msg: string, type: 'success' | 'error' | 'info') => void
+) => {
   try {
     const doc = new jsPDF();
     
@@ -96,7 +100,9 @@ export const generatePDF = async (filteredPassengers: Passenger[], stats: any) =
         URL.revokeObjectURL(url);
       }, 100);
       
-      alert('PDF gerado! Se o download não iniciou, verifique seus arquivos ou use a opção "Copiar Texto" como alternativa.');
+      if (notify) {
+        notify('PDF gerado! Verifique seus arquivos ou use "Copiar Texto" se o download falhar.', 'success');
+      }
     } catch (error) {
       console.error('Erro no fallback de download:', error);
       // Last resort: simple save
@@ -104,11 +110,17 @@ export const generatePDF = async (filteredPassengers: Passenger[], stats: any) =
     }
   } catch (error) {
     console.error('Erro fatal na geração do PDF:', error);
-    alert('Não foi possível gerar o PDF neste dispositivo. Por favor, use a opção "Copiar Texto" para enviar os dados pelo WhatsApp.');
+    if (notify) {
+      notify('Não foi possível gerar o PDF. Use a opção "Copiar Texto".', 'error');
+    }
   }
 };
 
-export const copyTextReport = (filteredPassengers: Passenger[], stats: any) => {
+export const copyTextReport = (
+  filteredPassengers: Passenger[], 
+  stats: any,
+  notify?: (msg: string, type: 'success' | 'error' | 'info') => void
+) => {
   const reportHeader = `📋 *RELATÓRIO DE PASSAGEIROS*\n_Gerado em: ${new Date().toLocaleString('pt-BR')}_\n\n`;
   const reportBody = filteredPassengers.map((p, i) => {
     return `${i + 1}. *${p.name}*\n   ${p.documentType || 'CPF'}: ${p.cpf || 'Não informado'}\n   Dias: ${p.days.join(', ')}\n`;
@@ -126,18 +138,27 @@ export const copyTextReport = (filteredPassengers: Passenger[], stats: any) => {
     }).catch(err => {
       console.error('Erro ao compartilhar texto:', err);
       // Fallback to clipboard
-      copyToClipboard(fullReport);
+      copyToClipboard(fullReport, notify);
     });
   } else {
-    copyToClipboard(fullReport);
+    copyToClipboard(fullReport, notify);
   }
 };
 
-const copyToClipboard = (text: string) => {
+const copyToClipboard = (text: string, notify?: (msg: string, type: 'success' | 'error' | 'info') => void) => {
   navigator.clipboard.writeText(text).then(() => {
-    alert('Relatório copiado para a área de transferência! Agora basta colar no WhatsApp.');
+    if (notify) {
+      notify('Relatório copiado! Agora cole no WhatsApp.', 'success');
+    } else {
+      alert('Relatório copiado para a área de transferência! Agora basta colar no WhatsApp.');
+    }
   }).catch(err => {
     console.error('Erro ao copiar: ', err);
-    alert('Não foi possível copiar automaticamente. Por favor, selecione o texto e copie manualmente.');
+    if (notify) {
+      notify('Erro ao copiar. Tente selecionar o texto manualmente.', 'error');
+    } else {
+      alert('Não foi possível copiar automaticamente. Por favor, selecione o texto e copie manualmente.');
+    }
   });
 };
+

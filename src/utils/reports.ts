@@ -42,55 +42,70 @@ export const generatePDF = async (filteredPassengers: Passenger[], stats: any) =
       });
     }
 
-  // Add summary
-  const finalY = (doc as any).lastAutoTable.finalY || 40;
-  doc.setFontSize(10);
-  doc.setTextColor(50);
-  doc.text(`Total de Passageiros: ${filteredPassengers.length}`, 14, finalY + 10);
-  doc.text(`Valor Total Geral: R$ ${stats.totalAmountExpected.toFixed(2)}`, 14, finalY + 16);
-
-  const fileName = `relatorio-passageiros-${new Date().toISOString().split('T')[0]}.pdf`;
-  
-  // Try to use Web Share API for direct WhatsApp sharing
-  const pdfBlob = doc.output('blob');
-  const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    // Add summary
+    let finalY = 40;
     try {
-      await navigator.share({
-        files: [file],
-        title: 'Relatório de Passageiros',
-        text: 'Segue o relatório de passageiros.',
-      });
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Erro ao compartilhar:', error);
-        doc.save(fileName);
-        alert('Não foi possível compartilhar diretamente. O PDF foi baixado no seu dispositivo.');
+      finalY = (doc as any).lastAutoTable?.finalY || 40;
+    } catch (e) {
+      console.warn('Could not get lastAutoTable Y position', e);
+    }
+    
+    doc.setFontSize(10);
+    doc.setTextColor(50);
+    doc.text(`Total de Passageiros: ${filteredPassengers.length}`, 14, finalY + 10);
+    doc.text(`Valor Total Geral: R$ ${stats.totalAmountExpected.toFixed(2)}`, 14, finalY + 16);
+
+    const fileName = `relatorio-passageiros-${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    // Try to use Web Share API for direct WhatsApp sharing
+    const pdfBlob = doc.output('blob');
+    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+    // More robust share check
+    const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+
+    if (navigator.share && canShareFiles) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'Relatório de Passageiros',
+          text: 'Segue o relatório de passageiros.',
+        });
+        return; // Success
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error('Erro ao compartilhar arquivo:', error);
+        } else {
+          return; // User cancelled
+        }
       }
     }
-  } else {
-    // Fallback to download
+
+    // Fallback to download using Blob URL (more stable in WebViews)
     try {
-      const pdfDataUri = doc.output('datauristring');
+      const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
-      link.href = pdfDataUri;
+      link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
       
-      alert('PDF gerado com sucesso! Se o download não iniciou automaticamente, verifique seus downloads ou tente novamente.');
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      alert('PDF gerado! Se o download não iniciou, verifique seus arquivos ou use a opção "Copiar Texto" como alternativa.');
     } catch (error) {
-      console.error('Erro ao baixar PDF:', error);
-      // Last resort fallback
+      console.error('Erro no fallback de download:', error);
+      // Last resort: simple save
       doc.save(fileName);
     }
+  } catch (error) {
+    console.error('Erro fatal na geração do PDF:', error);
+    alert('Não foi possível gerar o PDF neste dispositivo. Por favor, use a opção "Copiar Texto" para enviar os dados pelo WhatsApp.');
   }
-} catch (error) {
-  console.error('Erro geral na geração do PDF:', error);
-  alert('Erro ao gerar o PDF. Verifique se há dados suficientes.');
-}
 };
 
 export const copyTextReport = (filteredPassengers: Passenger[], stats: any) => {

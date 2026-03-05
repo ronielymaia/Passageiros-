@@ -52,6 +52,8 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  
   const formRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -238,6 +240,15 @@ export default function App() {
       return acc;
     }, {} as Record<Day, number>),
   }), [passengers]);
+
+  const handleGeneratePDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      await generatePDF(filteredPassengers, stats);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20">
@@ -488,7 +499,14 @@ export default function App() {
                 />
               </div>
               <div className="flex gap-2">
-                <button onClick={() => generatePDF(filteredPassengers, stats)} className="px-4 py-3 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-slate-100"><FileText size={18} /><span className="hidden sm:inline">PDF</span></button>
+                <button 
+                  onClick={handleGeneratePDF} 
+                  disabled={isGeneratingPDF}
+                  className="px-4 py-3 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-slate-100 disabled:opacity-50"
+                >
+                  <FileText size={18} />
+                  <span className="hidden sm:inline">{isGeneratingPDF ? 'Gerando...' : 'PDF'}</span>
+                </button>
                 <button onClick={() => copyTextReport(filteredPassengers, stats)} className="px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-emerald-100"><Share2 size={18} /><span className="hidden sm:inline">Copiar Texto</span></button>
               </div>
               {passengers.length > 0 && (

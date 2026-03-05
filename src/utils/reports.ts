@@ -1,33 +1,46 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Passenger } from '../types';
 
 export const generatePDF = async (filteredPassengers: Passenger[], stats: any) => {
-  const doc = new jsPDF();
-  
-  // Add title
-  doc.setFontSize(18);
-  doc.text('Relatório de Passageiros', 14, 22);
-  doc.setFontSize(11);
-  doc.setTextColor(100);
-  doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
-  
-  // Prepare table data
-  const tableData = filteredPassengers.map(p => [
-    p.name,
-    `${p.documentType || 'CPF'}: ${p.cpf || '-'}`,
-    p.congregation || '-',
-    p.days.join(', ')
-  ]);
+  try {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Relatório de Passageiros', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
+    
+    // Prepare table data
+    const tableData = filteredPassengers.map(p => [
+      p.name,
+      `${p.documentType || 'CPF'}: ${p.cpf || '-'}`,
+      p.congregation || '-',
+      p.days.join(', ')
+    ]);
 
-  autoTable(doc, {
-    startY: 35,
-    head: [['Nome', 'Documento', 'Congregação', 'Dias']],
-    theme: 'striped',
-    headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
-    styles: { fontSize: 10 },
-    body: tableData,
-  });
+    // Try both ways to call autoTable as versions vary
+    if (typeof autoTable === 'function') {
+      autoTable(doc, {
+        startY: 35,
+        head: [['Nome', 'Documento', 'Congregação', 'Dias']],
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
+        styles: { fontSize: 10 },
+        body: tableData,
+      });
+    } else if ((doc as any).autoTable) {
+      (doc as any).autoTable({
+        startY: 35,
+        head: [['Nome', 'Documento', 'Congregação', 'Dias']],
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
+        styles: { fontSize: 10 },
+        body: tableData,
+      });
+    }
 
   // Add summary
   const finalY = (doc as any).lastAutoTable.finalY || 40;
@@ -42,22 +55,34 @@ export const generatePDF = async (filteredPassengers: Passenger[], stats: any) =
   const pdfBlob = doc.output('blob');
   const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         files: [file],
         title: 'Relatório de Passageiros',
         text: 'Segue o relatório de passageiros.',
       });
-    } catch (error) {
-      console.error('Erro ao compartilhar:', error);
-      doc.save(fileName);
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('Erro ao compartilhar:', error);
+        doc.save(fileName);
+        alert('Não foi possível compartilhar diretamente. O PDF foi baixado no seu dispositivo.');
+      }
     }
   } else {
     // Fallback to download
-    doc.save(fileName);
-    alert('Relatório PDF gerado! O arquivo foi baixado. Agora você pode anexá-lo no WhatsApp.');
+    try {
+      doc.save(fileName);
+      alert('Seu navegador não suporta compartilhamento direto de arquivos. O PDF foi baixado. Você pode anexá-lo manualmente no WhatsApp.');
+    } catch (error) {
+      console.error('Erro ao baixar PDF:', error);
+      alert('Erro ao gerar o PDF. Tente novamente.');
+    }
   }
+} catch (error) {
+  console.error('Erro geral na geração do PDF:', error);
+  alert('Erro ao gerar o PDF. Verifique se há dados suficientes.');
+}
 };
 
 export const copyTextReport = (filteredPassengers: Passenger[], stats: any) => {
@@ -70,9 +95,26 @@ export const copyTextReport = (filteredPassengers: Passenger[], stats: any) => {
   
   const fullReport = reportHeader + reportBody + summary;
   
-  navigator.clipboard.writeText(fullReport).then(() => {
+  // Try to share via Web Share API first
+  if (navigator.share) {
+    navigator.share({
+      title: 'Relatório de Passageiros',
+      text: fullReport
+    }).catch(err => {
+      console.error('Erro ao compartilhar texto:', err);
+      // Fallback to clipboard
+      copyToClipboard(fullReport);
+    });
+  } else {
+    copyToClipboard(fullReport);
+  }
+};
+
+const copyToClipboard = (text: string) => {
+  navigator.clipboard.writeText(text).then(() => {
     alert('Relatório copiado para a área de transferência! Agora basta colar no WhatsApp.');
   }).catch(err => {
     console.error('Erro ao copiar: ', err);
+    alert('Não foi possível copiar automaticamente. Por favor, selecione o texto e copie manualmente.');
   });
 };

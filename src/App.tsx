@@ -120,10 +120,21 @@ export default function App() {
   }, [passengers]);
 
   const toggleDaySelection = (day: Day) => {
-    setSelectedDays(prev => 
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    );
+    setSelectedDays(prev => {
+      const newDays = prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day];
+      return newDays.sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
+    });
   };
+
+  const toggleAllDays = () => {
+    if (selectedDays.length === DAYS.length) {
+      setSelectedDays([]);
+    } else {
+      setSelectedDays([...DAYS]);
+    }
+  };
+
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,6 +142,7 @@ export default function App() {
 
     const total = parseFloat(ticketValue) || 0;
     const paid = parseFloat(paidValue) || 0;
+    const sortedDays = [...selectedDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
 
     if (editingId) {
       setPassengers(passengers.map(p => 
@@ -141,10 +153,11 @@ export default function App() {
               cpf: cpf.trim(),
               documentType,
               congregation: congregation.trim(),
-              days: selectedDays, 
+              days: sortedDays, 
               paymentMethod, 
               amount: total,
               paidAmount: paid,
+              lastPaidAmount: (paid > 0 && paid < total) ? paid : p.lastPaidAmount,
               status: calculateStatus(paid, total)
             } 
           : p
@@ -158,11 +171,12 @@ export default function App() {
         cpf: cpf.trim(),
         documentType,
         congregation: congregation.trim(),
-        days: selectedDays,
+        days: sortedDays,
         paymentMethod,
         status: calculateStatus(paid, total),
         amount: total,
         paidAmount: paid,
+        lastPaidAmount: (paid > 0 && paid < total) ? paid : undefined,
       };
       setPassengers([newPassenger, ...passengers]);
       showToast('Passageiro adicionado à lista!');
@@ -210,18 +224,25 @@ export default function App() {
       if (p.id === id) {
         let nextStatus: PaymentStatus;
         let nextPaidAmount = p.paidAmount || 0;
+        let nextLastPaidAmount = p.lastPaidAmount;
 
         if (p.status === 'Não Pago') {
           nextStatus = 'Parcialmente Pago';
+          if (nextLastPaidAmount && nextLastPaidAmount > 0 && nextLastPaidAmount < (p.amount || 0)) {
+            nextPaidAmount = nextLastPaidAmount;
+          }
         } else if (p.status === 'Parcialmente Pago') {
           nextStatus = 'Pago';
+          if (p.paidAmount && p.paidAmount > 0 && p.paidAmount < (p.amount || 0)) {
+            nextLastPaidAmount = p.paidAmount;
+          }
           nextPaidAmount = p.amount || 0;
         } else {
           nextStatus = 'Não Pago';
           nextPaidAmount = 0;
         }
 
-        return { ...p, status: nextStatus, paidAmount: nextPaidAmount };
+        return { ...p, status: nextStatus, paidAmount: nextPaidAmount, lastPaidAmount: nextLastPaidAmount };
       }
       return p;
     }));
@@ -257,13 +278,7 @@ export default function App() {
     );
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === filteredPassengers.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredPassengers.map(p => p.id));
-    }
-  };
+
 
   const deleteSelected = () => {
     askConfirm(
@@ -282,9 +297,27 @@ export default function App() {
     setPassengers(passengers.map(p => {
       if (selectedIds.includes(p.id)) {
         let nextPaidAmount = p.paidAmount || 0;
-        if (status === 'Pago') nextPaidAmount = p.amount || 0;
-        if (status === 'Não Pago') nextPaidAmount = 0;
-        return { ...p, status, paidAmount: nextPaidAmount };
+        let nextLastPaidAmount = p.lastPaidAmount;
+
+        if (status === 'Pago') {
+          if (p.status === 'Parcialmente Pago' && p.paidAmount && p.paidAmount > 0 && p.paidAmount < (p.amount || 0)) {
+            nextLastPaidAmount = p.paidAmount;
+          }
+          nextPaidAmount = p.amount || 0;
+        } else if (status === 'Não Pago') {
+          if (p.status === 'Parcialmente Pago' && p.paidAmount && p.paidAmount > 0 && p.paidAmount < (p.amount || 0)) {
+            nextLastPaidAmount = p.paidAmount;
+          }
+          nextPaidAmount = 0;
+        } else if (status === 'Parcialmente Pago') {
+          if (nextLastPaidAmount && nextLastPaidAmount > 0 && nextLastPaidAmount < (p.amount || 0)) {
+            nextPaidAmount = nextLastPaidAmount;
+          } else if (p.status === 'Pago') {
+            nextPaidAmount = 0;
+          }
+        }
+
+        return { ...p, status, paidAmount: nextPaidAmount, lastPaidAmount: nextLastPaidAmount };
       }
       return p;
     }));
@@ -491,21 +524,32 @@ export default function App() {
               </div>
             </div>
 
-            <div className="md:col-span-4 space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Dias de Viagem</label>
+            <div className="md:col-span-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-400 uppercase ml-1">Dias de Viagem</label>
+                <button
+                  type="button"
+                  onClick={toggleAllDays}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+                >
+                  {selectedDays.length === DAYS.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {DAYS.map(day => (
                   <button
                     key={day}
                     type="button"
                     onClick={() => toggleDaySelection(day)}
-                    className={`px-6 py-3 rounded-2xl text-sm font-bold transition-all border flex items-center gap-2 ${
+                    className={`flex-1 min-w-[120px] py-3 px-4 rounded-2xl text-sm font-bold transition-all border flex items-center justify-center gap-2 ${
                       selectedDays.includes(day)
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-md'
-                        : 'bg-slate-100 text-slate-500 border-transparent hover:bg-slate-200'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-lg scale-[1.02]'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <Calendar size={16} />
+                    <div className={`p-1 rounded-full ${selectedDays.includes(day) ? 'bg-white/20' : 'bg-slate-100'}`}>
+                      <Calendar size={14} />
+                    </div>
                     {day}
                   </button>
                 ))}
@@ -569,16 +613,7 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              {filteredPassengers.length > 0 && (
-                <button
-                  onClick={toggleSelectAll}
-                  className={`p-3 rounded-2xl border transition-all flex items-center gap-2 font-bold text-xs whitespace-nowrap ${
-                    selectedIds.length === filteredPassengers.length ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                  }`}
-                >
-                  {selectedIds.length === filteredPassengers.length ? 'Desmarcar Tudo' : 'Selecionar Tudo'}
-                </button>
-              )}
+
             </div>
             <div className="flex flex-wrap gap-2 w-full md:w-auto">
               <div className="relative flex-1 md:w-64 min-w-[200px]">
@@ -644,71 +679,124 @@ export default function App() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className={`group bg-white p-4 sm:p-6 rounded-3xl border shadow-sm flex items-center justify-between gap-4 transition-all hover:shadow-md ${
-                    passenger.status === 'Pago' ? 'border-l-4 border-l-emerald-500' : 
-                    passenger.status === 'Parcialmente Pago' ? 'border-l-4 border-l-amber-500' :
-                    'border-l-4 border-l-rose-500'
-                  } ${selectedIds.includes(passenger.id) ? 'ring-2 ring-slate-900 border-slate-900' : 'border-slate-200'}`}
+                  className={`group bg-white rounded-xl border shadow-sm transition-all hover:shadow-md overflow-hidden ${
+                    selectedIds.includes(passenger.id) ? 'ring-2 ring-slate-900 border-slate-900' : 'border-slate-200'
+                  }`}
                 >
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(passenger.id)}
-                        onChange={() => toggleSelection(passenger.id)}
-                        className="w-5 h-5 rounded-lg border-slate-300 text-slate-900 focus:ring-slate-900 transition-all cursor-pointer"
-                      />
-                      <button
-                        onClick={() => toggleStatus(passenger.id)}
-                        className={`flex-shrink-0 transition-colors ${
-                          passenger.status === 'Pago' ? 'text-emerald-500' : 
-                          passenger.status === 'Parcialmente Pago' ? 'text-amber-500' :
-                          'text-slate-300 hover:text-slate-400'
-                        }`}
-                      >
-                        {passenger.status === 'Pago' ? <CheckCircle2 size={32} /> : 
-                         passenger.status === 'Parcialmente Pago' ? <TrendingUp size={32} /> :
-                         <Circle size={32} />}
-                      </button>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className={`text-lg font-bold truncate ${passenger.status === 'Pago' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                          {passenger.name}
-                        </h3>
-                        {passenger.congregation && (
-                          <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black uppercase tracking-wider" translate="no">
-                            {passenger.congregation}
-                          </span>
-                        )}
+                  <div className={`h-0.5 w-full ${
+                    passenger.status === 'Pago' ? 'bg-emerald-500' : 
+                    passenger.status === 'Parcialmente Pago' ? 'bg-amber-500' :
+                    'bg-rose-500'
+                  }`} />
+                  
+                  <div className="p-2 flex flex-col sm:flex-row gap-2">
+                    {/* Left Section: Checkbox & Main Info */}
+                    <div className="flex items-start gap-2 flex-1">
+                      <div className="pt-1.5">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(passenger.id)}
+                          onChange={() => toggleSelection(passenger.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 transition-all cursor-pointer"
+                        />
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                      
+                      <div className="space-y-1 flex-1">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                            <h3 className={`text-lg font-bold ${passenger.status === 'Pago' ? 'text-slate-600' : 'text-slate-900'}`}>
+                              {passenger.name}
+                            </h3>
+                            {passenger.status === 'Pago' && <CheckCircle2 size={16} className="text-emerald-500" />}
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-1">
+                            {passenger.congregation && (
+                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-0.5">
+                                <Users size={12} className="text-slate-400" />
+                                {passenger.congregation}
+                              </span>
+                            )}
+                            {passenger.cpf && (
+                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-0.5">
+                                <FileText size={12} className="text-slate-400" />
+                                {passenger.documentType || 'CPF'}: {passenger.cpf}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="flex flex-wrap gap-1">
                           {passenger.days.map(day => (
-                            <span key={day} className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded-lg text-[10px] font-bold text-slate-500 uppercase">
-                              <Calendar size={10} className="text-emerald-500" />
+                            <span key={day} className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase border ${
+                              selectedIds.includes(passenger.id) 
+                                ? 'bg-white border-slate-200 text-slate-600' 
+                                : 'bg-slate-50 border-slate-100 text-slate-500'
+                            }`}>
                               {day}
                             </span>
                           ))}
                         </div>
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase ml-2">
-                          <CreditCard size={14} className="text-emerald-500" />
-                          {passenger.paymentMethod}
-                        </span>
-                        {passenger.amount !== undefined && (
-                          <div className="flex items-center gap-2 ml-2">
-                            <span className="text-xs font-bold text-slate-400 uppercase">R$ {passenger.amount.toFixed(2)}</span>
-                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 uppercase">Pago: R$ {(passenger.paidAmount || 0).toFixed(2)}</span>
-                          </div>
-                        )}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <button onClick={() => startEditing(passenger)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1"><Pencil size={20} /><span className="hidden lg:inline text-xs font-bold">Editar</span></button>
-                    <button onClick={() => deletePassenger(passenger.id)} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-1"><Trash2 size={20} /><span className="hidden lg:inline text-xs font-bold">Remover</span></button>
+                    {/* Right Section: Financials & Actions */}
+                    <div className="flex flex-col sm:items-end gap-2 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 pl-0 sm:pl-2 sm:border-l border-slate-100">
+                      
+                      <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg w-full sm:w-auto justify-between sm:justify-end">
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400 uppercase font-bold mb-0.5">Total</p>
+                          <p className="text-lg font-bold text-slate-700">R$ {passenger.amount?.toFixed(2) || '0.00'}</p>
+                        </div>
+                        <div className="w-px h-10 bg-slate-200"></div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400 uppercase font-bold mb-0.5">Pago</p>
+                          <p className={`text-lg font-bold ${
+                            (passenger.paidAmount || 0) >= (passenger.amount || 0) ? 'text-emerald-600' : 
+                            (passenger.paidAmount || 0) > 0 ? 'text-amber-600' : 'text-rose-600'
+                          }`}>
+                            R$ {passenger.paidAmount?.toFixed(2) || '0.00'}
+                          </p>
+                        </div>
+                        <div className="w-px h-10 bg-slate-200"></div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400 uppercase font-bold mb-0.5">Falta</p>
+                          <p className="text-lg font-bold text-slate-700">
+                            R$ {Math.max(0, (passenger.amount || 0) - (passenger.paidAmount || 0)).toFixed(2)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => toggleStatus(passenger.id)}
+                          className={`ml-1 p-2 rounded-md transition-all ${
+                            passenger.status === 'Pago' ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' : 
+                            passenger.status === 'Parcialmente Pago' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
+                            'bg-rose-100 text-rose-600 hover:bg-rose-200'
+                          }`}
+                          title="Alterar Status"
+                        >
+                          {passenger.status === 'Pago' ? <CheckCircle2 size={20} /> : 
+                           passenger.status === 'Parcialmente Pago' ? <TrendingUp size={20} /> :
+                           <Circle size={20} />}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button 
+                          onClick={() => startEditing(passenger)} 
+                          className="flex-1 sm:flex-none px-4 py-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all flex items-center justify-center gap-2 text-base font-bold"
+                        >
+                          <Pencil size={18} />
+                          <span>Editar</span>
+                        </button>
+                        <button 
+                          onClick={() => deletePassenger(passenger.id)} 
+                          className="flex-1 sm:flex-none px-4 py-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all flex items-center justify-center gap-2 text-base font-bold"
+                        >
+                          <Trash2 size={18} />
+                          <span>Remover</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               ))

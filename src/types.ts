@@ -12,6 +12,7 @@ export interface Passenger {
   status: PaymentStatus;
   amount?: number;
   paidAmount?: number;
+  lastPaidAmount?: number;
 }
 
 export const DAYS: Day[] = ['Sexta-feira', 'Sábado', 'Domingo'];

@@ -11,14 +11,14 @@ import {
   Users,
   TrendingUp,
   Search,
-  FileText,
+  FileSpreadsheet,
   Share2,
   HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Day, PaymentStatus, Passenger, DAYS, PAYMENT_METHODS } from './types';
 import { formatDocument, calculateStatus } from './utils/formatters';
-import { generatePDF, copyTextReport } from './utils/reports';
+import { generateExcel, copyTextReport } from './utils/reports';
 import { Header } from './components/Header';
 import { StatsSummary } from './components/StatsSummary';
 import { HelpModal } from './components/HelpModal';
@@ -80,7 +80,7 @@ export default function App() {
     isDanger: false
   });
   
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type, isVisible: true });
@@ -317,14 +317,14 @@ export default function App() {
     }, {} as Record<Day, number>),
   }), [passengers]);
 
-  const handleGeneratePDF = async () => {
-    setIsGeneratingPDF(true);
+  const handleGenerateExcel = async () => {
+    setIsGeneratingExcel(true);
     try {
-      await generatePDF(filteredPassengers, stats, (msg, type) => showToast(msg, type));
+      await generateExcel(filteredPassengers, stats, (msg, type) => showToast(msg, type));
     } catch (error) {
-      showToast('Erro ao gerar PDF.', 'error');
+      showToast('Erro ao gerar Excel.', 'error');
     } finally {
-      setIsGeneratingPDF(false);
+      setIsGeneratingExcel(false);
     }
   };
 
@@ -580,12 +580,12 @@ export default function App() {
               </div>
               <div className="flex gap-2">
                 <button 
-                  onClick={handleGeneratePDF} 
-                  disabled={isGeneratingPDF}
+                  onClick={handleGenerateExcel} 
+                  disabled={isGeneratingExcel}
                   className="px-4 py-3 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-slate-100 disabled:opacity-50"
                 >
-                  <FileText size={18} />
-                  <span className="hidden sm:inline">{isGeneratingPDF ? 'Gerando...' : 'PDF'}</span>
+                  <FileSpreadsheet size={18} />
+                  <span className="hidden sm:inline">{isGeneratingExcel ? 'Gerando...' : 'Excel'}</span>
                 </button>
                 <button onClick={() => copyTextReport(filteredPassengers, stats, (msg, type) => showToast(msg, type))} className="px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-md shadow-emerald-100"><Share2 size={18} /><span className="hidden sm:inline">Copiar Texto</span></button>
               </div>

@@ -1,117 +1,65 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { Passenger } from '../types';
 
-export const generatePDF = async (
+export const generateExcel = (
   filteredPassengers: Passenger[], 
   stats: any, 
   notify?: (msg: string, type: 'success' | 'error' | 'info') => void
 ) => {
   try {
-    const doc = new jsPDF();
+    // Prepare data for Excel
+    const header = ['Nome', 'Documento', 'Congregação', 'Dias'];
     
-    // Add title
-    doc.setFontSize(18);
-    doc.text('Relatório de Passageiros', 14, 22);
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
-    
-    // Prepare table data
-    const tableData = filteredPassengers.map(p => [
+    const data = filteredPassengers.map(p => [
       p.name,
       `${p.documentType || 'CPF'}: ${p.cpf || '-'}`,
       p.congregation || '-',
       p.days.join(', ')
     ]);
 
-    // Try both ways to call autoTable as versions vary
-    if (typeof autoTable === 'function') {
-      autoTable(doc, {
-        startY: 35,
-        head: [['Nome', 'Documento', 'Congregação', 'Dias']],
-        theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
-        styles: { fontSize: 10 },
-        body: tableData,
-      });
-    } else if ((doc as any).autoTable) {
-      (doc as any).autoTable({
-        startY: 35,
-        head: [['Nome', 'Documento', 'Congregação', 'Dias']],
-        theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
-        styles: { fontSize: 10 },
-        body: tableData,
-      });
-    }
+    // Add summary rows
+    const emptyRow = ['', '', '', ''];
+    const summaryHeader = ['', '', 'RESUMO', ''];
+    const summaryCount = ['', '', 'Passageiros', filteredPassengers.length];
 
-    // Add summary
-    let finalY = 40;
-    try {
-      finalY = (doc as any).lastAutoTable?.finalY || 40;
-    } catch (e) {
-      console.warn('Could not get lastAutoTable Y position', e);
-    }
-    
-    doc.setFontSize(10);
-    doc.setTextColor(50);
-    doc.text(`Total de Passageiros: ${filteredPassengers.length}`, 14, finalY + 10);
-    doc.text(`Valor Total Geral: R$ ${stats.totalAmountExpected.toFixed(2)}`, 14, finalY + 16);
+    const wsData = [
+      [`Relatório de Passageiros - ${new Date().toLocaleString('pt-BR')}`],
+      [],
+      header,
+      ...data,
+      emptyRow,
+      summaryHeader,
+      summaryCount
+    ];
 
-    const fileName = `relatorio-passageiros-${new Date().toISOString().split('T')[0]}.pdf`;
-    
-    // Try to use Web Share API for direct WhatsApp sharing
-    const pdfBlob = doc.output('blob');
-    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // More robust share check
-    const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+    // Set column widths
+    const wscols = [
+      { wch: 30 }, // Nome
+      { wch: 25 }, // Documento
+      { wch: 25 }, // Congregação
+      { wch: 40 }, // Dias
+    ];
+    ws['!cols'] = wscols;
 
-    if (navigator.share && canShareFiles) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: 'Relatório de Passageiros',
-          text: 'Segue o relatório de passageiros.',
-        });
-        return; // Success
-      } catch (error: any) {
-        if (error.name !== 'AbortError') {
-          console.error('Erro ao compartilhar arquivo:', error);
-        } else {
-          return; // User cancelled
-        }
-      }
-    }
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Passageiros");
 
-    // Fallback to download using Blob URL (more stable in WebViews)
-    try {
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Cleanup
-      setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 100);
-      
-      if (notify) {
-        notify('PDF gerado! Verifique seus arquivos ou use "Copiar Texto" se o download falhar.', 'success');
-      }
-    } catch (error) {
-      console.error('Erro no fallback de download:', error);
-      // Last resort: simple save
-      doc.save(fileName);
-    }
-  } catch (error) {
-    console.error('Erro fatal na geração do PDF:', error);
+    // Generate Excel file
+    const fileName = `relatorio-passageiros-${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
     if (notify) {
-      notify('Não foi possível gerar o PDF. Use a opção "Copiar Texto".', 'error');
+      notify('Excel gerado com sucesso!', 'success');
+    }
+
+  } catch (error) {
+    console.error('Erro ao gerar Excel:', error);
+    if (notify) {
+      notify('Erro ao gerar o arquivo Excel.', 'error');
     }
   }
 };
@@ -126,7 +74,7 @@ export const copyTextReport = (
     return `${i + 1}. *${p.name}*\n   ${p.documentType || 'CPF'}: ${p.cpf || 'Não informado'}\n   Dias: ${p.days.join(', ')}\n`;
   }).join('\n');
   
-  const summary = `\n---\n*RESUMO*\nTotal de Passageiros: ${filteredPassengers.length}\nValor Total: R$ ${stats.totalAmountExpected.toFixed(2)}`;
+  const summary = `\n---\n*RESUMO*\nTotal de Passageiros: ${filteredPassengers.length}`;
   
   const fullReport = reportHeader + reportBody + summary;
   
